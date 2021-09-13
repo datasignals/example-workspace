@@ -1,0 +1,591 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                              Codasip uRISC CA - decoder
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "ca_config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Decoder
+// -------------------------------------------------------------------------------------------------
+
+set dec = i_hw_nop_halt,
+          i_hw_alu_cmp,
+          i_hw_movsi_movhi,
+          i_hw_load,
+          i_hw_store,
+          i_hw_jump_call_abs,
+          i_hw_jump_call_gpr,
+          i_hw_jump_cond,
+          i_hw_mov_cond,
+          i_hw_addi;
+
+// -------------------------------------------------------------------------------------------------
+// Nop, halt and sycall instructions
+// -------------------------------------------------------------------------------------------------
+
+// All these instructions have no operands, therefore we can merge them into a bigger set.
+set opc_nop_halt = opc_nop, opc_halt;
+
+element i_hw_nop_halt
+{
+    use opc_nop_halt as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_FALSE;
+        // Result select
+        s_id_pipe_mux = DONT_CARE;
+
+        // Operations
+        switch (opc)
+        {
+            case OPC_NOP:
+                s_id_alu_op = ALU_NOP;
+                break;
+
+            case OPC_HALT:
+                s_id_alu_op = ALU_NOP;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = DONT_CARE;
+        s_id_srcB_mux = DONT_CARE;
+        s_id_addrW_mux = DONT_CARE;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Arithmetic and compare instruction
+// -------------------------------------------------------------------------------------------------
+
+set opc_alu_cmp = opc_alu, opc_cmp;
+
+element i_hw_alu_cmp
+{
+    use opc_alu_cmp as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_TRUE;
+        // Result select
+        s_id_pipe_mux = ALU_PIPELINE;
+
+        // Operations
+        switch (opc)
+        {
+            case OPC_ADD:
+                s_id_alu_op = ALU_ADD;
+                break;
+
+            case OPC_SUB:
+                s_id_alu_op = ALU_SUB;
+                break;
+
+            case OPC_MUL:
+                s_id_alu_op = ALU_MUL;
+                break;
+
+            case OPC_AND:
+                s_id_alu_op = ALU_AND;
+                break;
+
+            case OPC_OR:
+                s_id_alu_op = ALU_OR;
+                break;
+
+            case OPC_XOR:
+                s_id_alu_op = ALU_XOR;
+                break;
+
+            case OPC_SLL:
+                s_id_alu_op = ALU_SLL;
+                break;
+
+            case OPC_SRL:
+                s_id_alu_op = ALU_SRL;
+                break;
+
+            case OPC_SRA:
+                s_id_alu_op = ALU_SRA;
+                break;
+
+            case OPC_EQ:
+                s_id_alu_op = ALU_EQ;
+                break;
+
+            case OPC_NEQ:
+                s_id_alu_op = ALU_NEQ;
+                break;
+
+            case OPC_SLT:
+                s_id_alu_op = ALU_SLT;
+                break;
+
+            case OPC_ULT:
+                s_id_alu_op = ALU_ULT;
+                break;
+
+            case OPC_SLE:
+                s_id_alu_op = ALU_SLE;
+                break;
+
+            case OPC_ULE:
+                s_id_alu_op = ALU_ULE;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = SRC_A_GPR;
+        s_id_srcB_mux = SRC_B_GPR;
+        s_id_addrW_mux = MUX_ADDR_W;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Instructions loading a 32-bit immediate value
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_movsi_movhi
+{
+    use opc_movsi_movhi as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_TRUE;
+        // Result select
+        s_id_pipe_mux = ALU_PIPELINE;
+
+        // Operations
+        switch (opc)
+        {
+            case OPC_MOVSI:
+                s_id_alu_op = ALU_MOV;
+                break;
+
+            case OPC_MOVHI:
+                s_id_alu_op = ALU_MOVHI;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = DONT_CARE;
+        s_id_srcB_mux = SRC_B_SIMM19;
+        s_id_addrW_mux = MUX_ADDR_A;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Load instructions
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_load
+{
+    use opc_load as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_TRUE;
+        // Result select
+        s_id_pipe_mux = LOAD_PIPELINE;
+
+        // Operations
+        s_id_alu_op = ALU_ADD;
+
+        switch (opc)
+        {
+            case OPC_LD:
+                s_id_mem_op = MEM_LD;
+                s_id_hsize = CP_AHB_SIZE_32;
+                break;
+
+            case OPC_LDHS:
+                s_id_mem_op = MEM_LDHS;
+                s_id_hsize = CP_AHB_SIZE_16;
+                break;
+
+            case OPC_LDHU:
+                s_id_mem_op = MEM_LDHU;
+                s_id_hsize = CP_AHB_SIZE_16;
+                break;
+
+            case OPC_LDBS:
+                s_id_mem_op = MEM_LDBS;
+                s_id_hsize = CP_AHB_SIZE_8;
+                break;
+
+            case OPC_LDBU:
+                s_id_mem_op = MEM_LDBU;
+                s_id_hsize = CP_AHB_SIZE_8;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+        s_id_htrans = CP_AHB_NONSEQ;
+        s_id_hwrite = CP_AHB_READ;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = SRC_A_GPR;
+        s_id_srcB_mux = SRC_B_SIMM14;
+        s_id_addrW_mux = MUX_ADDR_B;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Store instructions
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_store
+{
+    use opc_store as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_FALSE;
+        // Result select
+        s_id_pipe_mux = DONT_CARE;
+
+        // Operations
+        s_id_alu_op = ALU_ADD;
+
+        switch (opc)
+        {
+            case OPC_ST:
+                s_id_mem_op = MEM_ST;
+                s_id_hsize = CP_AHB_SIZE_32;
+                break;
+
+            case OPC_STH:
+                s_id_mem_op = MEM_STH;
+                s_id_hsize = CP_AHB_SIZE_16;
+                break;
+
+            case OPC_STB:
+                s_id_mem_op = MEM_STB;
+                s_id_hsize = CP_AHB_SIZE_8;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+        s_id_htrans = CP_AHB_NONSEQ;
+        s_id_hwrite = CP_AHB_WRITE;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = SRC_A_GPR;
+        s_id_srcB_mux = SRC_B_SIMM14;
+        s_id_addrW_mux = DONT_CARE;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Direct jump and call instructions
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_jump_call_abs
+{
+    use opc_jump_call_abs as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        switch (opc)
+        {
+            case OPC_JUMP_ABS:
+                // Register file write enable
+                s_id_dest_we = WE_FALSE;
+                // Result select
+                s_id_pipe_mux = DONT_CARE;
+                break;
+
+            case OPC_CALL_ABS:
+                // Register file write enable
+                s_id_dest_we = WE_TRUE;
+                // Result select
+                s_id_pipe_mux = PC_PIPELINE;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        // Operations
+        s_id_alu_op = ALU_MOV;
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_TRUE;
+
+        // Operand MUXes
+        s_id_srcA_mux = DONT_CARE;
+        s_id_srcB_mux = SRC_B_UIMM24;
+        s_id_addrW_mux = MUX_ADDR_RA;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Indirect jump and call instructions
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_jump_call_gpr
+{
+    use opc_jump_call_gpr as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        switch (opc)
+        {
+            case OPC_JUMP_GPR:
+                // Register file write enable
+                s_id_dest_we = WE_FALSE;
+                // Result select
+                s_id_pipe_mux = DONT_CARE;
+                break;
+
+            case OPC_CALL_GPR:
+                s_id_dest_we = WE_TRUE;
+                s_id_pipe_mux = PC_PIPELINE;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        // Operations
+        s_id_alu_op = ALU_MOV;
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_TRUE;
+
+        // Operand MUXes
+        s_id_srcA_mux = DONT_CARE;
+        s_id_srcB_mux = SRC_B_GPR;
+        s_id_addrW_mux = MUX_ADDR_RA;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Conditional move instructions
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_mov_cond
+{
+    use opc_mov_cond as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        switch (opc) {
+            case OPC_MOVZ:
+                s_id_dest_we = WE_FALSE_COND;
+                break;
+
+            case OPC_MOVNZ:
+                s_id_dest_we = WE_TRUE_COND;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        // Result select
+        s_id_pipe_mux = ALU_PIPELINE;
+
+        // Operations
+        s_id_alu_op = ALU_MOV;
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = SRC_A_GPR;
+        s_id_srcB_mux = SRC_B_GPR;
+        s_id_addrW_mux = MUX_ADDR_W;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Conditional jump instructions (using relative addressing)
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_jump_cond
+{
+    use opc_jump_cond as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_FALSE;
+        // Result select
+        s_id_pipe_mux = DONT_CARE;
+
+        // Operations
+        s_id_alu_op = ALU_ADD;
+        s_id_mem_op = MEM_NOP;
+
+        switch (opc)
+        {
+            case OPC_JUMPZ:
+                s_id_jump_op = JUMP_FALSE_COND;
+                break;
+
+            case OPC_JUMPNZ:
+                s_id_jump_op = JUMP_TRUE_COND;
+                break;
+
+            default:
+                eprintf("Default case: %d", opc);
+                break;
+        }
+
+        // Operand MUXes
+        s_id_srcA_mux = SRC_A_PC;
+        s_id_srcB_mux = SRC_B_SIMM14;
+        s_id_addrW_mux = DONT_CARE;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Addi instruction
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_addi
+{
+    use opc_addi as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_TRUE;
+        // Result select
+        s_id_pipe_mux = ALU_PIPELINE;
+
+        // Operations
+        s_id_alu_op = ALU_ADD;
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = SRC_A_GPR;
+        s_id_srcB_mux = SRC_B_SIMM14;
+        s_id_addrW_mux = MUX_ADDR_B;
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Syscall instruction (eg. for file operations in the simulator)
+// -------------------------------------------------------------------------------------------------
+
+element i_hw_syscall
+{
+    use opc_syscall as opc;
+
+    assembly { opc };
+    binary { opc };
+
+    semantics
+    {
+        // Register file write enable
+        s_id_dest_we = WE_FALSE;
+        // Result select
+        s_id_pipe_mux = DONT_CARE;
+
+        // Operations
+        s_id_alu_op = ALU_MOV;
+
+        s_id_mem_op = MEM_NOP;
+        s_id_jump_op = JUMP_FALSE;
+
+        // Operand MUXes
+        s_id_srcA_mux = DONT_CARE;
+        s_id_srcB_mux = SRC_B_GPR;
+        s_id_addrW_mux = DONT_CARE;
+    };
+};
+
+set dec += i_hw_syscall;
+
+

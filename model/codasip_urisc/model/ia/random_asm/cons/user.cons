@@ -1,0 +1,12 @@
+override scenario program_end_instructions
+{
+    instructions { 
+    	i_nop__opc_nop__; 
+    	i_nop__opc_nop__;
+    	i_nop__opc_nop__; 
+    	i_halt__opc_halt__; 
+    	i_nop__opc_nop__; 
+    	i_nop__opc_nop__;
+    	i_nop__opc_nop__;
+	};
+};

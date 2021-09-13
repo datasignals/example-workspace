@@ -1,0 +1,244 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                         Codasip uRISC CA - decode stage events
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "ca_config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Decode stage
+// -------------------------------------------------------------------------------------------------
+
+event id : pipeline(pipe.ID)
+{
+    use dec;
+    use id_output;
+
+    semantics
+    {
+        uint32 id_instr_temp;
+        bool hready, hresp;
+
+        // -----------------------------------------------------------------------------------------
+        // Instruction fetch finish
+        // -----------------------------------------------------------------------------------------
+
+        if_fetch.transport(CP_PHS_DATA, hready, hresp, id_instr_temp);
+
+        #pragma simulator
+        {
+            printf_id_finish(hready, hresp);
+        }
+
+        s_id_finish_stall = (!hready);
+
+        if (r_id_clear)
+        {
+            s_id_instr = NOP_INSTRUCTION;
+        }
+        else if (r_id_buffer_full && r_id_buffer_pc == r_id_pc)
+        {
+            s_id_instr = r_id_buffer_instr;
+        }
+        else if (!hready)
+        {
+            s_id_instr = NOP_INSTRUCTION;
+        }
+        else
+        {
+            s_id_instr = id_instr_temp;
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Instruction parsing
+        // -----------------------------------------------------------------------------------------
+
+        // Opcode
+        s_id_opcode = s_id_instr[31..24];
+
+        // Destination register
+        s_id_addrW = s_id_instr[23..19];
+
+        // First source register
+        s_id_addrA = s_id_instr[18..14];
+
+        // Second source register
+        s_id_addrB = s_id_instr[13..9];
+
+        // Absolute address
+        s_id_uimm24 = s_id_instr[23..0];
+
+        // Relative address
+        s_id_simm14 = s_id_instr[23..19] :: s_id_instr[8..0];
+
+        // Immediate value
+        s_id_simm19 = s_id_instr[23..19] :: s_id_instr[13..0];
+
+        // Decoder activation
+        dec(s_id_opcode);
+
+        // Event activated after decoding instruction
+        id_output();
+    };
+};
+
+event id_output : pipeline(pipe.ID)
+{
+    // Register operands
+    signal bit[WORD_W] s_id_gprA, s_id_gprB;
+
+    semantics
+    {
+        // -----------------------------------------------------------------------------------------
+        // Register file with forwarding
+        // -----------------------------------------------------------------------------------------
+
+        // Forwarding is easy, we compare source address to destination address of previous
+        // instructions.
+
+        // Register A
+        s_id_gprA = (s_id_addrA == r_ex_addrW && s_ex_dest_we) ? s_ex_alu :
+                    (s_id_addrA == r_wb_addrW && r_wb_dest_we) ? s_wb_result :
+                                                                 rf_gpr.r0[s_id_addrA];
+
+        // Register B
+        s_id_gprB = (s_id_addrB == r_ex_addrW && s_ex_dest_we) ? s_ex_alu :
+                    (s_id_addrB == r_wb_addrW && r_wb_dest_we) ? s_wb_result :
+                                                                 rf_gpr.r1[s_id_addrB];
+
+        // -----------------------------------------------------------------------------------------
+        // Operands (control signals are set in the decoder)
+        // -----------------------------------------------------------------------------------------
+
+        // First operand
+        switch (s_id_srcA_mux)
+        {
+            case SRC_A_GPR:
+                r_ex_srcA = s_id_gprA;
+                break;
+
+            case SRC_A_PC:
+                r_ex_srcA = r_id_pc;
+                break;
+        }
+
+        // Second operand
+        switch (s_id_srcB_mux)
+        {
+            case SRC_B_GPR:
+                r_ex_srcB = s_id_gprB;
+                break;
+
+            case SRC_B_SIMM14:
+                r_ex_srcB = (int32)(int14)s_id_simm14;
+                break;
+
+            case SRC_B_SIMM19:
+                r_ex_srcB = (int32)(int19)s_id_simm19;
+                break;
+
+            case SRC_B_UIMM24:
+                r_ex_srcB = s_id_uimm24;
+                break;
+        }
+
+        // Register file write address
+        switch (s_id_addrW_mux)
+        {
+            case MUX_ADDR_W:
+                r_ex_addrW = s_id_addrW;
+                break;
+
+            case MUX_ADDR_A:
+                r_ex_addrW = s_id_addrA;
+                break;
+
+            case MUX_ADDR_B:
+                r_ex_addrW = s_id_addrB;
+                break;
+
+            case MUX_ADDR_RA:
+                // Call instruction have a hard encoded write address
+                r_ex_addrW = GPR_RETADDR;
+                break;
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Pipeline output
+        // -----------------------------------------------------------------------------------------
+
+        r_ex_pc = r_id_pc;
+        r_ex_opcode = s_id_opcode;
+
+        r_ex_alu_op = s_id_alu_op;
+        r_ex_mem_op = s_id_mem_op;
+        r_ex_jump_op = s_id_jump_op;
+
+        r_ex_htrans = s_id_htrans;
+        r_ex_hwrite = s_id_hwrite;
+        r_ex_hsize = s_id_hsize;
+
+        r_ex_cond = (s_id_gprA != 0);
+        r_ex_store = s_id_gprB;
+
+        r_ex_dest_we = s_id_dest_we;
+        r_ex_pipe_mux = s_id_pipe_mux;
+
+        r_ex_instr = s_id_instr;
+
+        s_id_stall = s_id_finish_stall || s_ex_stall;
+
+        // -----------------------------------------------------------------------------------------
+        // Instruction buffer
+        // -----------------------------------------------------------------------------------------
+
+        // Instruction was fetched this cycle, but execute stage is stalled.
+        // We need to store it to buffer, otherwise we lose it next clock cycle.
+
+        // Buffer will be empty in the next clock cycle
+        if (s_ex_jump_en || !s_id_stall)
+        {
+            dprintf("ID: Buffer free\n");
+            r_id_buffer_full = false;
+            s_fe_ready = true;
+        }
+        // Buffer will be full in the next clock cycle
+        else if (!s_id_finish_stall && s_id_stall && !r_id_buffer_full)
+        {
+            dprintf("ID: Buffer block\n");
+            r_id_buffer_full = true;
+            r_id_buffer_instr = s_id_instr;
+            r_id_buffer_pc = r_id_pc;
+            s_fe_ready = false;
+        }
+        // Buffer will be in the same state
+        else
+        {
+            s_fe_ready = !r_id_buffer_full;
+        }
+    };
+};
+

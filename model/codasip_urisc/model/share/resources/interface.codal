@@ -1,0 +1,76 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                                  Codasip uRISC - interfaces
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Interface to code memory
+// -------------------------------------------------------------------------------------------------
+
+interface if_fetch
+{
+    // The bits specifier has 3 values:
+    // - address bus bitwidth
+    // - word bitwidth
+    // - byte size (byte size is equal to the smallest addressable by
+    bits = { ADDR_W, WORD_W, LAU_W };
+
+    // The type says what interface this is. The protocol of AHB3_LITE is described in AMBA 3
+    // AHB-Lite Protocol Specification and the processor core behaves as a master on the bus.
+    type = AHB3_LITE:MASTER;
+
+    // Read-only interface
+    flag = R;
+
+    // Setting endianness of interface
+    endianness = ENDIAN;
+
+    // Specification allowed data and address alignments.
+    alignment = {
+        // Derives the address boundaries - number of LSBs which must be zero.
+        address = WORD_W;
+        // Data is a list of bitwidth which can be accessed in a single transaction.
+        data = { WORD_W };
+    };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Interface to data memory
+// -------------------------------------------------------------------------------------------------
+
+interface if_ldst
+{
+    bits = { ADDR_W, WORD_W, LAU_W };
+    type = AHB3_LITE:MASTER;
+    flag = RW;
+    endianness = ENDIAN;
+    alignment = {
+        address = WORD_W;
+        data = { LAU_W, 2*LAU_W, WORD_W };
+    };
+};

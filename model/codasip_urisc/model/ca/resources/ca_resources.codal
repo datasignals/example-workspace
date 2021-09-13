@@ -1,0 +1,180 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                               Codasip uRISC CA - resources
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "ca_config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Pipeline stages
+
+pipeline pipe
+{
+    FE, ID, EX, WB
+};
+
+// -------------------------------------------------------------------------------------------------
+// Fecth stage
+// -------------------------------------------------------------------------------------------------
+
+signal  bit[1]              s_fe_ready;
+
+// -------------------------------------------------------------------------------------------------
+// Decode stage
+// -------------------------------------------------------------------------------------------------
+
+// Program Counter
+register bit[ADDR_W]        r_id_pc;
+// Instruction
+signal   bit[INSTR_W]       s_id_instr;
+// Opcode
+signal   bit[OPC_W]         s_id_opcode;
+
+// Register indexes
+signal   bit[RF_GPR_W]      s_id_addrA;
+signal   bit[RF_GPR_W]      s_id_addrB;
+signal   bit[RF_GPR_W]      s_id_addrW;
+
+// Source operands MUXes
+signal   bit[SRC_A_MUX_W]   s_id_srcA_mux;
+signal   bit[SRC_B_MUX_W]   s_id_srcB_mux;
+
+// Immediate operands
+signal   bit[IMM14_W]       s_id_simm14;
+signal   bit[IMM19_W]       s_id_simm19;
+signal   bit[IMM24_W]       s_id_uimm24;
+
+// Operations
+signal   bit[ALU_OP_W]      s_id_alu_op;
+signal   bit[MEM_OP_W]      s_id_mem_op;
+signal   bit[JUMP_OP_W]     s_id_jump_op;
+
+// AHB command
+signal   bit[HTRANS_W]      s_id_htrans;
+signal   bit[HWRITE_W]      s_id_hwrite;
+signal   bit[HSIZE_W]       s_id_hsize;
+
+// Register file write enable
+signal   bit[WRITE_OP_W]    s_id_dest_we;
+// Operation result MUX
+signal   bit[PIPE_MUX_W]    s_id_pipe_mux;
+// Register file write address MUX
+signal   bit[ADDR_W_MUX_W]  s_id_addrW_mux;
+
+register bit[WORD_W]        r_id_buffer_instr;
+register bit[ADDR_W]        r_id_buffer_pc;
+register bit[1]             r_id_buffer_full;
+
+// -------------------------------------------------------------------------------------------------
+// Execute stage
+// -------------------------------------------------------------------------------------------------
+
+// Program Counter
+register bit[ADDR_W]        r_ex_pc       { pipeline = pipe.EX; };
+// Instruction
+register bit[INSTR_W]       r_ex_instr    { pipeline = pipe.EX; };
+// Opcode
+register bit[OPC_W]         r_ex_opcode   { pipeline = pipe.EX; };
+
+// Source operands
+register bit[WORD_W]        r_ex_srcA     { pipeline = pipe.EX; };
+register bit[WORD_W]        r_ex_srcB     { pipeline = pipe.EX; };
+
+// Operations
+register bit[ALU_OP_W]      r_ex_alu_op   { pipeline = pipe.EX; };
+register bit[MEM_OP_W]      r_ex_mem_op   { pipeline = pipe.EX; };
+register bit[JUMP_OP_W]     r_ex_jump_op  { pipeline = pipe.EX; };
+
+// AHB command
+register bit[HTRANS_W]      r_ex_htrans  { pipeline = pipe.EX; };
+register bit[HWRITE_W]      r_ex_hwrite  { pipeline = pipe.EX; };
+register bit[HSIZE_W]       r_ex_hsize   { pipeline = pipe.EX; };
+
+// ALU result
+signal   bit[WORD_W]        s_ex_alu;
+// Condition result
+register bit[1]             r_ex_cond     { pipeline = pipe.EX; };
+// Jump result
+signal   bit[1]             s_ex_jump_en;
+// Store data
+register bit[WORD_W]        r_ex_store    { pipeline = pipe.EX; };
+
+// Register file write enable
+register bit[WRITE_OP_W]    r_ex_dest_we  { pipeline = pipe.EX; };
+signal   bit[1]             s_ex_dest_we;
+// Operation result MUX
+register bit[PIPE_MUX_W]    r_ex_pipe_mux { pipeline = pipe.EX; };
+// Register file write address
+register bit[RF_GPR_W]      r_ex_addrW    { pipeline = pipe.EX; };
+
+// -------------------------------------------------------------------------------------------------
+// Writeback stage
+// -------------------------------------------------------------------------------------------------
+
+// Program counter
+register bit[ADDR_W]        r_wb_pc       { pipeline = pipe.WB; };
+// Instruction
+register bit[INSTR_W]       r_wb_instr    { pipeline = pipe.WB; };
+// Opcode
+register bit[OPC_W]         r_wb_opcode   { pipeline = pipe.WB; };
+
+// Operations
+register bit[MEM_OP_W]      r_wb_mem_op   { pipeline = pipe.WB; };
+
+// AHB command
+register bit[HTRANS_W]      r_wb_htrans  { pipeline = pipe.WB; };
+register bit[HWRITE_W]      r_wb_hwrite  { pipeline = pipe.WB; };
+register bit[ADDR_OFFSET_W] r_wb_haddr   { pipeline = pipe.WB; };
+register bit[HSIZE_W]       r_wb_hsize   { pipeline = pipe.WB; };
+
+// ALU result
+register bit[WORD_W]        r_wb_alu      { pipeline = pipe.WB; };
+// Store data
+register bit[WORD_W]        r_wb_store    { pipeline = pipe.WB; };
+// Load result
+signal   bit[WORD_W]        s_wb_load;
+// Operation result
+signal   bit[WORD_W]        s_wb_result;
+
+
+// Register file write enable
+register bit[1]             r_wb_dest_we  { pipeline = pipe.WB; };
+// Operation result MUX
+register bit[PIPE_MUX_W]    r_wb_pipe_mux { pipeline = pipe.WB; };
+// Register file write address
+register bit[RF_GPR_W]      r_wb_addrW    { pipeline = pipe.WB; };
+
+
+// -------------------------------------------------------------------------------------------------
+// Pipeline control
+// -------------------------------------------------------------------------------------------------
+
+signal   bit[1] s_fe_stall;
+signal   bit[1] s_id_stall, s_id_finish_stall, s_id_clear;
+signal   bit[1] s_ex_stall, s_ex_clear;
+signal   bit[1] s_wb_stall, s_wb_finish_stall, s_wb_clear;
+
+register bit[1] r_id_clear {default = true;};

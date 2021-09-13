@@ -1,0 +1,114 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                           Codasip uRISC - instruction operands
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Register operand element
+// -------------------------------------------------------------------------------------------------
+
+// Elements with assembler and binary sections are used to describe instruction operands.
+// Registers, immediate operands, conditional predicate and addressing modes are described.
+
+DEF_GPR( 0) DEF_GPR( 1) DEF_GPR( 2) DEF_GPR( 3) DEF_GPR( 4) DEF_GPR( 5) DEF_GPR( 6) DEF_GPR( 7)
+DEF_GPR( 8) DEF_GPR( 9) DEF_GPR(10) DEF_GPR(11) DEF_GPR(12) DEF_GPR(13) DEF_GPR(14) DEF_GPR(15)
+DEF_GPR(16) DEF_GPR(17) DEF_GPR(18) DEF_GPR(19) DEF_GPR(20) DEF_GPR(21) DEF_GPR(22) DEF_GPR(23)
+DEF_GPR(24) DEF_GPR(25) DEF_GPR(26) DEF_GPR(27) DEF_GPR(28) DEF_GPR(29) DEF_GPR(30) DEF_GPR(31)
+
+// Register class generalizes all register operands.
+set gpr_all : register_class(rf_gpr);
+set gpr_all = gpr_0,  gpr_1,  gpr_2,  gpr_3,  gpr_4,  gpr_5,  gpr_6,  gpr_7,
+              gpr_8,  gpr_9,  gpr_10, gpr_11, gpr_12, gpr_13, gpr_14, gpr_15,
+              gpr_16, gpr_17, gpr_18, gpr_19, gpr_20, gpr_21, gpr_22, gpr_23,
+              gpr_24, gpr_25, gpr_26, gpr_27, gpr_28, gpr_29, gpr_30, gpr_31;
+
+// -------------------------------------------------------------------------------------------------
+// Immediate elements
+// -------------------------------------------------------------------------------------------------
+
+element simm14
+{
+    signed attribute bit[IMM14_W] val;
+
+    assembly { val };
+    binary { val };
+
+    return { val };
+};
+
+// -------------------------------------------------------------------------------------------------
+
+element simm19
+{
+    signed attribute bit[IMM19_W] val;
+
+    assembly { val };
+    binary { val };
+
+    return { val };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Relative address
+// -------------------------------------------------------------------------------------------------
+
+element rel_addr14
+{
+    signed attribute bit[IMM14_W] val
+    {
+        label = true;
+
+        // A signed value is read by the assembler, the program counter value is subtracted
+        // and the result is stored in the binary coding.
+        encoding = val - current_address;
+        decoding = val + current_address;
+    };
+
+    assembly { val };
+    binary { val };
+
+    return { val };
+};
+
+// -------------------------------------------------------------------------------------------------
+// Absolute address
+// -------------------------------------------------------------------------------------------------
+
+element abs_addr24
+{
+    unsigned attribute bit[IMM24_W] val
+    {
+        label = true;
+    };
+
+    assembly { val };
+    binary { val };
+
+    return { val };
+};
+

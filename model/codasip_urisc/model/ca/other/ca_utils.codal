@@ -1,0 +1,91 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                                Codasip uRISC CA - utilities
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+
+#include "ca_config.hcodal"
+
+void print_pipeline()
+{
+    dprintf("ID: ");
+    codasip_disassembler(DEBUG_LEVEL, s_id_instr, r_id_pc, "default", 28);
+    dprintf("EX: ");
+    codasip_disassembler(DEBUG_LEVEL, r_ex_instr, r_ex_pc, "default", 28);
+    dprintf("WB: ");
+    codasip_disassembler(DEBUG_LEVEL, r_wb_instr, r_wb_pc, "default", 28);
+    dprintf("\n____________________________________________________________________________________"
+            "______\n");
+}
+
+void printf_fe_request(int address)
+{
+    dprintf("FE: Request, address = 0x%08X\n", address);
+}
+
+void printf_id_finish(bool hready, bool hresp)
+{
+    dprintf("ID: Finish = ");
+    printf_finish_response(hready, hresp);
+    dprintf("\n");
+}
+
+void printf_ex_request(int cmd, int address)
+{
+    if (cmd != CP_AHB_IDLE)
+    {
+        dprintf("EX: Request, address = 0x%08x\n", address);
+    }
+}
+
+void printf_wb_finish(bool hready, bool hresp, int htrans, bool hwrite, int load_val, int store_val)
+{
+    if (htrans != CP_AHB_IDLE)
+    {
+        dprintf("WB: Finish = ");
+        printf_finish_response(hready, hresp);
+
+        if (hwrite)
+        {
+            dprintf("Store = 0x%08x\n", store_val);
+        }
+        else
+        {
+            dprintf("Load = 0x%08x\n", load_val);
+        }
+
+    }
+}
+
+void printf_finish_response(bool hready, bool hresp)
+{
+    if (hready && !hresp)
+        dprintf("%-10s", "OK");
+    else if (hresp)
+        dprintf("%-10s", "ERROR");
+    else
+        dprintf("%-10s", "WAIT");
+}

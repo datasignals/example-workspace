@@ -1,0 +1,245 @@
+/*
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                                Codasip uRISC IA - utilities
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "config.hcodal"
+
+// ---------------------------------------------------------------------------------------------- //
+// General Purpose Register File Access
+// ---------------------------------------------------------------------------------------------- //
+
+inline uint32 rf_gpr_read(const uint5 index)
+{
+    uint32 val;
+
+    // The register field is accessed in the same way as a C array.
+    val = rf_gpr[index];
+    dprintf("rf_gpr[%2d] -> %08x ", index, val);
+
+    return val;
+}
+
+inline void rf_gpr_write(const uint32 val, const uint5 index)
+{
+    rf_gpr[index] = val;
+    dprintf("rf_gpr[%2d] <- %08x ", index, val);
+}
+
+// ---------------------------------------------------------------------------------------------- //
+// ALU
+// ---------------------------------------------------------------------------------------------- //
+
+uint32 alu(const uint32 opc, const uint32 src1, const uint32 src2)
+{
+    uint32 result;
+
+    switch (opc)
+    {
+        case OPC_ADD:
+        case OPC_ADDI:
+            result = src1 + src2;
+            break;
+
+        case OPC_SUB:
+            result = src1 - src2;
+            break;
+
+        case OPC_MUL:
+            result = src1 * src2;
+            break;
+
+        case OPC_AND:
+            result = src1 & src2;
+            break;
+
+        case OPC_OR:
+            result = src1 | src2;
+            break;
+
+        case OPC_XOR:
+            result = src1 ^ src2;
+            break;
+
+        case OPC_SLL:
+            result = src1 << (uint5) src2;
+            break;
+
+        case OPC_SRA:
+            result = (int32) src1 >> (uint5) src2;
+            break;
+
+        case OPC_SRL:
+            result = src1 >> (uint5) src2;
+            break;
+
+        default:
+            result = 0;
+            eprintf("Default case: %d", opc);
+            break;
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------------------------- //
+// Compare
+// ---------------------------------------------------------------------------------------------- //
+
+uint32 cmp(const uint32 opc, const uint32 src1, const uint32 src2)
+{
+    uint32 result;
+
+    switch (opc)
+    {
+        case OPC_EQ:
+            result = src1 == src2;
+            break;
+
+        case OPC_NEQ:
+            result = src1 != src2;
+            break;
+
+        case OPC_SLT:
+            result = (int32)src1 < (int32)src2;
+            break;
+
+        case OPC_ULT:
+            result = src1 < src2;
+            break;
+
+        case OPC_SLE:
+            result = (int32)src1 <= (int32)src2;
+            break;
+
+        case OPC_ULE:
+            result = src1 <= src2;
+            break;
+
+        default:
+            result = 0;
+            eprintf("Default case: %d", opc);
+            break;
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------------------------- //
+// Jumping
+// ---------------------------------------------------------------------------------------------- //
+
+inline void set_pc(const uint32 val)
+{
+    r_pc = val;
+    dprintf("Jumping to 0x%x", val);
+}
+
+// ---------------------------------------------------------------------------------------------- //
+// Load function
+// ---------------------------------------------------------------------------------------------- //
+
+uint32 load(const uint32 opc, const uint32 address)
+{
+    uint32 result, byte_count;
+
+    switch (opc)
+    {
+        case OPC_LD:
+            byte_count = 4;
+            break;
+
+        case OPC_LDHS:
+        case OPC_LDHU:
+            byte_count = 2;
+            break;
+
+        case OPC_LDBS:
+        case OPC_LDBU:
+            byte_count = 1;
+            break;
+
+        default:
+            byte_count = 0;
+            eprintf("Default case: %d", opc);
+            break;
+    }
+
+    // Data Interface read
+    result = if_ldst.read(address, byte_count);
+    dprintf("ld [%08x] ", address);
+
+    switch (opc)
+    {
+        case OPC_LDBS:
+            return (int32)(int8) result;
+
+        case OPC_LDHS:
+            return (int32)(int16) result;
+
+        case OPC_LDBU:
+        case OPC_LDHU:
+        case OPC_LD:
+            return result;
+
+        default:
+            eprintf("Default case: %d", opc);
+            return 0;
+    }
+}
+
+// ---------------------------------------------------------------------------------------------- //
+// Store function
+// ---------------------------------------------------------------------------------------------- //
+
+void store(const uint32 opc, const uint32 address, const uint32 result)
+{
+    uint32 byte_count;
+
+    switch (opc)
+    {
+        case OPC_ST:
+            byte_count = 4;
+            break;
+
+        case OPC_STH:
+            byte_count = 2;
+            break;
+
+        case OPC_STB:
+            byte_count = 1;
+            break;
+
+        default:
+            byte_count = 0;
+            eprintf("Default case: %d", opc);
+            break;
+    }
+
+    // Data Interface write
+    if_ldst.write(result, address, byte_count);
+    dprintf("st %08x -> [%08x] ", result, address);
+}

@@ -1,0 +1,9 @@
+2019-03-18: version 5.0.0
+	* Renamed assembler keyword to assembly
+	* Update register_file dataports
+	* Update MEMORY protocol to AHB3_LITE
+	* Repleased requst() and finish() builtins with transport() builtin
+2017-08-04: version 4.0.1
+    * Enhanced constrains for a random program generator 
+2017-04-05: version 4.0.0
+    * new uRISC core with simplified ISA and microarchitecture for easier extensions 

@@ -1,0 +1,131 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                         Codasip uRISC CA - writeback stage events
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "ca_config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Write-Back Stage
+// -------------------------------------------------------------------------------------------------
+
+event wb : pipeline(pipe.WB)
+{
+    use wb_output;
+
+    signal bit[WORD_W] s_wb_load_temp, s_wb_load_temp_enc;
+
+    semantics
+    {
+        bool hready, hresp;
+
+        // -----------------------------------------------------------------------------------------
+        // Memory finish
+        // -----------------------------------------------------------------------------------------
+
+        if_ldst.transport(CP_PHS_DATA, hready, hresp, s_wb_load_temp_enc, r_wb_store);
+        s_wb_load_temp = if_ldst.decode_data(s_wb_load_temp_enc, r_wb_haddr, r_wb_hsize);
+
+        // Sign extension
+        s_wb_load = (r_wb_mem_op == MEM_LDHS) ? (uint32)(int16)  s_wb_load_temp :
+                    (r_wb_mem_op == MEM_LDHU) ? (uint32)(uint16) s_wb_load_temp :
+                    (r_wb_mem_op == MEM_LDBS) ? (uint32)(int8)   s_wb_load_temp :
+                    (r_wb_mem_op == MEM_LDBU) ? (uint32)(uint8)  s_wb_load_temp :
+                                                (uint32)         s_wb_load_temp;
+
+        #pragma simulator
+        {
+            printf_wb_finish(hready, hresp, r_wb_htrans, r_wb_hwrite, s_wb_load, r_wb_store);
+        }
+
+        s_wb_finish_stall = (!hready);
+        s_wb_stall = s_wb_finish_stall;
+
+        // Output wb
+        wb_output();
+    };
+};
+
+event wb_output : pipeline(pipe.WB)
+{
+    semantics
+    {
+        // -----------------------------------------------------------------------------------------
+        // Operation result select
+        // -----------------------------------------------------------------------------------------
+
+        switch (r_wb_pipe_mux)
+        {
+            case ALU_PIPELINE:
+                s_wb_result = r_wb_alu;
+                break;
+
+            case LOAD_PIPELINE:
+                s_wb_result = s_wb_load;
+                break;
+
+            case PC_PIPELINE:
+                s_wb_result = r_wb_pc + INSTR_SIZE;
+                break;
+
+            default:
+                eprintf("Default case: %d", r_wb_pipe_mux);
+                break;
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Result write
+        // -----------------------------------------------------------------------------------------
+
+        if (r_wb_dest_we && !s_wb_stall)
+        {
+            rf_gpr.w0[r_wb_addrW] = s_wb_result;
+            dprintf("WB: rf_gpr[%d] = 0x%x\n", r_wb_addrW, s_wb_result);
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // End of program execution
+        // -----------------------------------------------------------------------------------------
+
+        if (r_wb_opcode == OPC_HALT)
+        {
+            codasip_halt();
+            #pragma simulator
+            {
+                iprintf("Halt: return value = %d", rf_gpr[GPR_RETVAL] & 0xFF);
+                codasip_store_exit_code(rf_gpr[GPR_RETVAL] & 0xFF);
+            }
+        }
+        else if (r_wb_opcode == OPC_SYSCALL)
+        {
+            #pragma simulator
+            {
+                codasip_syscall(s_wb_result);
+            }
+        }
+    };
+};
+

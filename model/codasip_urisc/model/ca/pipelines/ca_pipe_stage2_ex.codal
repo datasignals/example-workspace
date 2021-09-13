@@ -1,0 +1,189 @@
+/**
+ * Codasip s.r.o.
+ * 
+ * CONFIDENTIAL 
+ *
+ * Copyright 2019 Codasip s.r.o.
+ * 
+ * All Rights Reserved.
+ *
+ * NOTICE: All information contained in this file, is and shall remain the property of 
+ * Codasip s.r.o. and its suppliers, if any. 
+ *
+ * The intellectual and technical concepts contained herein are confidential and proprietary to 
+ * Codasip s.r.o. and are protected by trade secret and copyright law.  In addition, elements of the 
+ * technical concepts may be patent pending.  
+ *
+ * This file is part of the Codasip Studio product. No part of the Studio product, including this 
+ * file, may be use, copied, modified, or distributed except in accordance with the terms contained 
+ * in Codasip license agreement under which you obtained this file.
+ */
+
+/* -------------------------------------------------------------------------------------------------
+ *
+ *                         Codasip uRISC CA - execute stage events
+ *
+ * -------------------------------------------------------------------------------------------------
+ */
+
+#include "ca_config.hcodal"
+
+// -------------------------------------------------------------------------------------------------
+// Execute Stage
+// -------------------------------------------------------------------------------------------------
+
+event ex : pipeline(pipe.EX)
+{
+    use ex_memory;
+    use ex_output;
+
+    semantics
+    {
+        // -----------------------------------------------------------------------------------------
+        // ALU
+        // -----------------------------------------------------------------------------------------
+
+        switch (r_ex_alu_op)
+        {
+            // Nop
+            case ALU_NOP:
+                s_ex_alu = 0;
+                break;
+
+            // Move instructions
+            case ALU_MOV:
+                s_ex_alu = r_ex_srcB;
+                break;
+
+            case ALU_MOVHI:
+                s_ex_alu = r_ex_srcB[15..0] :: r_ex_srcA[15..0];
+                break;
+
+            // Arithmetic instructions
+            case ALU_ADD:
+                s_ex_alu = r_ex_srcA + r_ex_srcB;
+                break;
+
+            case ALU_SUB:
+                s_ex_alu = r_ex_srcA - r_ex_srcB;
+                break;
+
+            case ALU_MUL:
+                s_ex_alu = r_ex_srcA * r_ex_srcB;
+                break;
+
+            // Logical instructions
+            case ALU_AND:
+                s_ex_alu = r_ex_srcA & r_ex_srcB;
+                break;
+
+            case ALU_OR:
+                s_ex_alu = r_ex_srcA | r_ex_srcB;
+                break;
+
+            case ALU_XOR:
+                s_ex_alu = r_ex_srcA ^ r_ex_srcB;
+                break;
+
+            // Shift instructions
+            case ALU_SLL:
+                s_ex_alu = r_ex_srcA << (uint5)r_ex_srcB;
+                break;
+
+            case ALU_SRL:
+                s_ex_alu = r_ex_srcA >> (uint5)r_ex_srcB;
+                break;
+
+            case ALU_SRA:
+                s_ex_alu = (int32)r_ex_srcA >> (uint5)r_ex_srcB;
+                break;
+
+            // Compare instructions
+            case ALU_EQ:
+                s_ex_alu = r_ex_srcA == r_ex_srcB;
+                break;
+
+            case ALU_NEQ:
+                s_ex_alu = r_ex_srcA != r_ex_srcB;
+                break;
+
+            case ALU_ULT:
+                s_ex_alu = r_ex_srcA < r_ex_srcB;
+                break;
+
+            case ALU_ULE:
+                s_ex_alu = r_ex_srcA <= r_ex_srcB;
+                break;
+
+            case ALU_SLT:
+                s_ex_alu = (int32)r_ex_srcA < (int32)r_ex_srcB;
+                break;
+
+            case ALU_SLE:
+                s_ex_alu = (int32)r_ex_srcA <= (int32)r_ex_srcB;
+                break;
+
+            default:
+                eprintf("Default case: %d", r_ex_alu_op);
+                break;
+        }
+
+        // Timing
+        ex_memory();
+        ex_output();
+    };
+};
+
+event ex_memory : pipeline(pipe.EX)
+{
+    semantics
+    {
+        // -----------------------------------------------------------------------------------------
+        // Memory request
+        // -----------------------------------------------------------------------------------------
+
+        if_ldst.transport(CP_PHS_ADDRESS, r_ex_htrans, r_ex_hwrite, s_ex_alu, r_ex_hsize);
+
+        #pragma simulator
+        {
+            printf_ex_request(r_ex_htrans, s_ex_alu);
+        }
+
+        r_wb_htrans = r_ex_htrans;
+        r_wb_hwrite = r_ex_hwrite;
+        r_wb_haddr = s_ex_alu;
+        r_wb_hsize = r_ex_hsize;
+        r_wb_store = if_ldst.encode_data(r_ex_store, s_ex_alu, r_ex_hsize);
+    };
+};
+
+event ex_output : pipeline(pipe.EX)
+{
+    semantics
+    {
+        r_wb_pc = r_ex_pc;
+        r_wb_opcode = r_ex_opcode;
+
+        r_wb_alu = s_ex_alu;
+        r_wb_mem_op = r_ex_mem_op;
+
+        // Register file write enable
+        s_ex_dest_we = (r_ex_dest_we == WE_TRUE ||
+                       (r_ex_dest_we == WE_TRUE_COND  && r_ex_cond == true) ||
+                       (r_ex_dest_we == WE_FALSE_COND && r_ex_cond == false));
+
+        // Program counter write enable
+        s_ex_jump_en = (r_ex_jump_op == JUMP_TRUE ||
+                       (r_ex_jump_op == JUMP_TRUE_COND  && r_ex_cond == true) ||
+                       (r_ex_jump_op == JUMP_FALSE_COND && r_ex_cond == false));
+
+        s_ex_stall = s_wb_stall;
+
+        r_wb_dest_we = s_ex_dest_we;
+        r_wb_pipe_mux = r_ex_pipe_mux;
+        r_wb_addrW = r_ex_addrW;
+
+        r_wb_instr = r_ex_instr;
+    };
+};
+
