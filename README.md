@@ -1,2 +1,2 @@
 # codasip-example-workspace
-this contains a typical codasip project
+this contains a typical project
